@@ -1,42 +1,100 @@
-from flask import Flask, render_template, request, redirect, url_for
-from flask import jsonify
-import psycopg2
 import os
+import psycopg2
+from flask import Flask, render_template, request, redirect, url_for
 
 app = Flask(__name__, template_folder='templates')
 
 # Configuración de la base de datos
-DB_HOST = 'dpg-d7bc7a2dbo4c73dsfh10-a.oregon-postgres.render.com'
-DB_NAME = 'dbtest_h0hy'
-DB_USER = 'dbtest_h0hy_user'
-DB_PASSWORD = 'K3C8mp2OwkwKaC46Gg9Ur7o0ngQUKfDq'
+DATABASE_URL = os.getenv('DATABASE_URL')
+DB_HOST = os.getenv('DB_HOST')
+DB_NAME = os.getenv('DB_NAME')
+DB_USER = os.getenv('DB_USER')
+DB_PASSWORD = os.getenv('DB_PASSWORD')
+DB_PORT = os.getenv('DB_PORT', '5432')
+DB_SSLMODE = os.getenv('DB_SSLMODE', 'require')
 
 
 def conectar_db():
     try:
-        conn = psycopg2.connect(
-            dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST)
-        return conn
-    except psycopg2.Error as e:
+        if DATABASE_URL:
+            return psycopg2.connect(DATABASE_URL)
+
+        if not all([DB_HOST, DB_NAME, DB_USER, DB_PASSWORD]):
+            raise RuntimeError(
+                'Faltan variables de entorno de base de datos. Define DATABASE_URL o DB_HOST, DB_NAME, DB_USER y DB_PASSWORD.'
+            )
+
+        return psycopg2.connect(
+            dbname=DB_NAME,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            host=DB_HOST,
+            port=DB_PORT,
+            sslmode=DB_SSLMODE,
+        )
+    except (psycopg2.Error, RuntimeError) as e:
         print("Error al conectar a la base de datos:", e)
+        return None
+
+
+def crear_tabla_personas():
+    conn = conectar_db()
+    if conn is None:
+        return
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS personas (
+                id SERIAL PRIMARY KEY,
+                dni VARCHAR(20) NOT NULL,
+                nombre VARCHAR(100) NOT NULL,
+                apellido VARCHAR(100) NOT NULL,
+                direccion TEXT,
+                telefono VARCHAR(20)
+            );
+        """)
+        conn.commit()
+    except psycopg2.Error as e:
+        conn.rollback()
+        print("Error al crear la tabla personas:", e)
+    finally:
+        conn.close()
 
 
 def crear_persona(dni, nombre, apellido, direccion, telefono):
     conn = conectar_db()
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO personas (dni, nombre, apellido, direccion, telefono) VALUES (%s, %s, %s, %s, %s)",
-                   (dni, nombre, apellido, direccion, telefono))
-    conn.commit()
-    conn.close()
+    if conn is None:
+        return
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO personas (dni, nombre, apellido, direccion, telefono) VALUES (%s, %s, %s, %s, %s)",
+                       (dni, nombre, apellido, direccion, telefono))
+        conn.commit()
+    except psycopg2.Error as e:
+        conn.rollback()
+        print("Error al crear la persona:", e)
+    finally:
+        conn.close()
 
 def obtener_registros():
-    conn = psycopg2.connect(
-        dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST)
-    cursor=conn.cursor()
-    cursor.execute("SELECT * FROM personas order by apellido")
-    registros = cursor.fetchall()
-    conn.close()
-    return registros
+    conn = conectar_db()
+    if conn is None:
+        return []
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM personas order by apellido")
+        return cursor.fetchall()
+    except psycopg2.Error as e:
+        print("Error al obtener registros:", e)
+        return []
+    finally:
+        conn.close()
+
+
+crear_tabla_personas()
 
 @app.route('/')
 def index():
@@ -55,20 +113,28 @@ def registrar():
 
 @app.route('/administrar')
 def administrar():
-    registros=obtener_registros()
-    return render_template('administrar.html',registros=registros)
+    registros = obtener_registros()
+    return render_template('administrar.html', registros=registros)
 
 @app.route('/eliminar/<dni>', methods=['POST'])
 def eliminar_registro(dni):
-    conn = psycopg2.connect(
-        dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST)
-    cursor=conn.cursor()
-    cursor.execute("DELETE FROM personas WHERE dni = %s", (dni,))
-    conn.commit()
-    conn.close()
+    conn = conectar_db()
+    if conn is None:
+        return redirect(url_for('administrar'))
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM personas WHERE dni = %s", (dni,))
+        conn.commit()
+    except psycopg2.Error as e:
+        conn.rollback()
+        print("Error al eliminar el registro:", e)
+    finally:
+        conn.close()
+
     return redirect(url_for('administrar'))
 
 if __name__ == '__main__':
-    #Esto es nuevo
-    port = int(os.environ.get('PORT',5000))    
-    app.run(host='0.0.0.0', port=port, debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    debug_mode = os.environ.get('FLASK_DEBUG', '0') == '1'
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)
