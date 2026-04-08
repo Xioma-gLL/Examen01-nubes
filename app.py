@@ -4,6 +4,24 @@ from flask import Flask, render_template, request, redirect, url_for
 
 app = Flask(__name__, template_folder='templates')
 
+def cargar_env_local(path='.env'):
+    if not os.path.exists(path):
+        return
+
+    with open(path, encoding='utf-8') as archivo:
+        for linea in archivo:
+            linea = linea.strip()
+            if not linea or linea.startswith('#') or '=' not in linea:
+                continue
+
+            clave, valor = linea.split('=', 1)
+            clave = clave.strip()
+            valor = valor.strip().strip('"').strip("'")
+            os.environ.setdefault(clave, valor)
+
+
+cargar_env_local()
+
 # Configuración de la base de datos
 DATABASE_URL = os.getenv('DATABASE_URL')
 DB_HOST = os.getenv('DB_HOST')
@@ -116,15 +134,15 @@ def administrar():
     registros = obtener_registros()
     return render_template('administrar.html', registros=registros)
 
-@app.route('/eliminar/<dni>', methods=['POST'])
-def eliminar_registro(dni):
+@app.route('/eliminar/<int:persona_id>', methods=['POST'])
+def eliminar_registro(persona_id):
     conn = conectar_db()
     if conn is None:
         return redirect(url_for('administrar'))
 
     try:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM personas WHERE dni = %s", (dni,))
+        cursor.execute("DELETE FROM personas WHERE id = %s", (persona_id,))
         conn.commit()
     except psycopg2.Error as e:
         conn.rollback()
