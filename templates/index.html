@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Persona</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Registro de Personal</h1>
+        
+        <a href="/administrar" class="administrar-link">Administrar Registros</a>
+        <div class="separator"></div>
+        <form action="/registrar" method="post">
+            <div class="form-group">
+                <label for="dni">DNI:</label>
+                <input type="text" id="dni" name="dni" required>
+            </div>
+            <div class="form-group">
+                <label for="nombre">Nombre:</label>
+                <input type="text" id="nombre" name="nombre" required>
+            </div>
+            <div class="form-group">
+                <label for="apellido">Apellido:</label>
+                <input type="text" id="apellido" name="apellido" required>
+            </div>
+            <div class="form-group">
+                <label for="direccion">Dirección:</label>
+                <input type="text" id="direccion" name="direccion">
+            </div>
+            <div class="form-group">
+                <label for="telefono">Teléfono:</label>
+                <input type="text" id="telefono" name="telefono">
+            </div>
+            <button type="submit" onclick="mostrarMensaje()">Registrar</button>
+        </form>
+    </div>
+
+    <!-- Modal para el mensaje de registro exitoso -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="cerrarMensaje()">&times;</span>
+            <p>¡Registro exitoso!</p>
+        </div>
+    </div>
+
+    <!-- Script para manejar el modal -->
+    <script>
+        function mostrarMensaje() {
+            var modal = document.getElementById('modal');
+            modal.style.display = 'block';
+        }
+
+        function cerrarMensaje() {
+            var modal = document.getElementById('modal');
+            modal.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
+
+
